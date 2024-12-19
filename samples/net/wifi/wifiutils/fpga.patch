@@ -1,0 +1,173 @@
+diff --git a/boards/nordic/nrf7002dk/nrf5340_cpuapp_common_pinctrl.dtsi b/boards/nordic/nrf7002dk/nrf5340_cpuapp_common_pinctrl.dtsi
+index f04075f374d..da5aeec0a5e 100644
+--- a/boards/nordic/nrf7002dk/nrf5340_cpuapp_common_pinctrl.dtsi
++++ b/boards/nordic/nrf7002dk/nrf5340_cpuapp_common_pinctrl.dtsi
+@@ -57,6 +57,7 @@
+ 				<NRF_PSEL(QSPI_IO2, 0, 15)>,
+ 				<NRF_PSEL(QSPI_IO3, 0, 16)>,
+ 				<NRF_PSEL(QSPI_CSN, 0, 18)>;
++		nordic,drive-mode = <NRF_DRIVE_H0H1>;
+ 		};
+ 	};
+ 
+diff --git a/drivers/wifi/nrf_wifi/src/fmac_main.c b/drivers/wifi/nrf_wifi/src/fmac_main.c
+index 470be6c8055..30acf6de985 100644
+--- a/drivers/wifi/nrf_wifi/src/fmac_main.c
++++ b/drivers/wifi/nrf_wifi/src/fmac_main.c
+@@ -591,12 +591,22 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_add_zep(struct nrf_wifi_drv_priv_zep *drv
+ 	}
+ 
+ 	rpu_ctx_zep->rpu_ctx = rpu_ctx;
+-
++#if 0
+ 	status = nrf_wifi_fw_load(rpu_ctx);
+ 	if (status != NRF_WIFI_STATUS_SUCCESS) {
+ 		LOG_ERR("%s: nrf_wifi_fw_load failed", __func__);
+ 		goto err;
+ 	}
++#endif
++
++	/** Check if frimware loaded properly */
++	status = nrf_wifi_fmac_fw_boot(rpu_ctx);
++	if (status != NRF_WIFI_STATUS_SUCCESS) {
++		LOG_ERR("%s: nrf_wifi_fw_boot failed", __func__);
++		goto err;
++	} else {
++		printf("Boot check passed\n");
++	}
+ 
+ 	status = nrf_wifi_fmac_ver_get(rpu_ctx,
+ 				       &fw_ver);
+diff --git a/include/zephyr/drivers/wifi/nrf_wifi/bus/rpu_hw_if.h b/include/zephyr/drivers/wifi/nrf_wifi/bus/rpu_hw_if.h
+index 1b7c1e4979a..e2a10b3d34b 100644
+--- a/include/zephyr/drivers/wifi/nrf_wifi/bus/rpu_hw_if.h
++++ b/include/zephyr/drivers/wifi/nrf_wifi/bus/rpu_hw_if.h
+@@ -17,17 +17,14 @@
+ #include <zephyr/drivers/gpio.h>
+ 
+ enum {
+-	SYSBUS = 0,
+-	EXT_SYS_BUS,
+-	PBUS,
+-	PKTRAM,
+-	GRAM,
+-	LMAC_ROM,
+-	LMAC_RET_RAM,
+-	LMAC_SRC_RAM,
+-	UMAC_ROM,
+-	UMAC_RET_RAM,
+-	UMAC_SRC_RAM,
++	WIFIMCU_REG = 0,
++	RAM0,
++	RAM1,
++	DATARAM,
++	CODERAM,
++	RAM2,
++	BELLBOARD,
++	SECURERAM,
+ 	NUM_MEM_BLOCKS
+ };
+ 
+diff --git a/modules/nrf_wifi/bus/device.c b/modules/nrf_wifi/bus/device.c
+index 8cf0b77cd67..d2d2f3c2d62 100644
+--- a/modules/nrf_wifi/bus/device.c
++++ b/modules/nrf_wifi/bus/device.c
+@@ -49,7 +49,7 @@ struct qspi_config *qspi_defconfig(void)
+ 	config.test_hlread = false;
+ 	config.test_iteration = 0;
+ 
+-	config.qspi_slave_latency = 0;
++	config.qspi_slave_latency = 1;
+ 
+ 	config.encryption = config.CMD_CNONCE = false;
+ 
+diff --git a/modules/nrf_wifi/bus/qspi_if.c b/modules/nrf_wifi/bus/qspi_if.c
+index 8c381ff60c5..f8d61a877b1 100644
+--- a/modules/nrf_wifi/bus/qspi_if.c
++++ b/modules/nrf_wifi/bus/qspi_if.c
+@@ -1235,9 +1235,10 @@ void qspi_update_nonce(unsigned int addr, int len, int hlread)
+ void qspi_addr_check(unsigned int addr, const void *data, unsigned int len)
+ {
+ 	if ((addr % 4 != 0) || (((unsigned int)data) % 4 != 0) || (len % 4 != 0)) {
++/*
+ 		LOG_ERR("%s : Unaligned address %x %x %d %x %x", __func__, addr,
+ 		       (unsigned int)data, (addr % 4 != 0), (((unsigned int)data) % 4 != 0),
+-		       (len % 4 != 0));
++		       (len % 4 != 0)); */
+ 	}
+ }
+ 
+diff --git a/modules/nrf_wifi/bus/rpu_hw_if.c b/modules/nrf_wifi/bus/rpu_hw_if.c
+index 524d465b78c..d1276586a72 100644
+--- a/modules/nrf_wifi/bus/rpu_hw_if.c
++++ b/modules/nrf_wifi/bus/rpu_hw_if.c
+@@ -40,17 +40,17 @@ char blk_name[][15] = { "SysBus",   "ExtSysBus",	   "PBus",	   "PKTRAM",
+ 			       "UMAC_ROM", "UMAC_RET_RAM", "UMAC_SRC_RAM" };
+ 
+ uint32_t rpu_7002_memmap[][3] = {
+-	{ 0x000000, 0x008FFF, 1 },
+-	{ 0x009000, 0x03FFFF, 2 },
+-	{ 0x040000, 0x07FFFF, 1 },
+-	{ 0x0C0000, 0x0F0FFF, 0 },
+-	{ 0x080000, 0x092000, 2 },
+-	{ 0x100000, 0x134000, 1 },
+-	{ 0x140000, 0x14C000, 1 },
+-	{ 0x180000, 0x190000, 1 },
+-	{ 0x200000, 0x261800, 1 },
+-	{ 0x280000, 0x2A4000, 1 },
+-	{ 0x300000, 0x338000, 1 }
++	{ 0x000000, 0x0FFFFF, 1 },
++	{ 0x100000, 0x17FFFF, 1 }, //RAM0 is LMAC Memory
++	{ 0x180000, 0x1FFFFF, 1 }, //RAM1 is UMAC Memory
++	{ 0x200000, 0x2FFFFF, 1 }, //PKTRAM is DATARAM
++	//CODERAM is ROM (LMAC & UMAC)
++	//FLASH  (rx)  : ORIGIN = 0x0E000000, LENGTH = 0x34000  for LMAC
++	//FLASH  (rx)  : ORIGIN = 0x0E034000, LENGTH = 0x79000  for UMAC
++	{ 0x300000, 0x37FFFF, 1 }, //CODERAM is ROM (LMAC & UMAC)
++	{ 0x3C0000, 0x3DFFFF, 1 }, //RAM2 is GRAM
++	{ 0x380000, 0x38FFFF, 1 }, //BELLBOARD
++	{ 0x3e0000, 0x3FFFFB, 1 }
+ };
+ 
+ static const struct qspi_dev *qdev;
+@@ -66,7 +66,7 @@ static int validate_addr_blk(uint32_t start_addr,
+ 
+ 	if (((start_addr >= block_map[0]) && (start_addr <= block_map[1])) &&
+ 	    ((end_addr >= block_map[0]) && (end_addr <= block_map[1]))) {
+-		if (block_no == PKTRAM) {
++		if (block_no == DATARAM) {
+ 			*hl_flag = 0;
+ 		}
+ 		*selected_blk = block_no;
+@@ -98,7 +98,8 @@ int rpu_validate_addr(uint32_t start_addr, uint32_t len, bool *hl_flag)
+ 		return -1;
+ 	}
+ 
+-	if ((selected_blk == LMAC_ROM) || (selected_blk == UMAC_ROM)) {
++	/* if ((selected_blk == LMAC_ROM) || (selected_blk == UMAC_ROM)) { */
++	if (selected_blk == CODERAM) {
+ 		LOG_ERR("Error: Cannot write to ROM blocks");
+ 		return -1;
+ 	}
+diff --git a/modules/nrf_wifi/os/shim.c b/modules/nrf_wifi/os/shim.c
+index ed6acf95846..fcbfd8a93d4 100644
+--- a/modules/nrf_wifi/os/shim.c
++++ b/modules/nrf_wifi/os/shim.c
+@@ -69,7 +69,7 @@ static unsigned int zep_shim_qspi_read_reg32(void *priv, unsigned long addr)
+ 
+ 	dev = qspi_priv->qspi_dev;
+ 
+-	if (addr < 0x0C0000) {
++	if (addr < 0x200000) {
+ 		dev->hl_read(addr, &val, 4);
+ 	} else {
+ 		dev->read(addr, &val, 4);
+@@ -96,7 +96,7 @@ static void zep_shim_qspi_cpy_from(void *priv, void *dest, unsigned long addr, s
+ 
+ 	dev = qspi_priv->qspi_dev;
+ 
+-	if (addr < 0x0C0000) {
++	if (addr < 0x200000) {
+ 		dev->hl_read(addr, dest, count_aligned);
+ 	} else {
+ 		dev->read(addr, dest, count_aligned);

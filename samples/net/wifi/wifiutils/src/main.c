@@ -295,7 +295,8 @@ static int cmd_sleep_stats(const struct shell *shell, size_t argc, char **argv)
 
     if (!rpu_validate_addr(addr, wrd_len*4,&hl_flag)) return -1;
 
-    if ((selected_blk == LMAC_ROM) || (selected_blk == UMAC_ROM)) {
+    /*if ((selected_blk == LMAC_ROM) || (selected_blk == UMAC_ROM)) { */
+	if (selected_blk == CODERAM) {
         shell_print(shell, "Error... Cannot write to ROM blocks");
         return -1;
     }

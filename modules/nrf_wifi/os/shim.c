@@ -69,7 +69,7 @@ static unsigned int zep_shim_qspi_read_reg32(void *priv, unsigned long addr)
 
 	dev = qspi_priv->qspi_dev;
 
-	if (addr < 0x0C0000) {
+	if (addr < 0x200000) {
 		dev->hl_read(addr, &val, 4);
 	} else {
 		dev->read(addr, &val, 4);
@@ -96,7 +96,7 @@ static void zep_shim_qspi_cpy_from(void *priv, void *dest, unsigned long addr, s
 
 	dev = qspi_priv->qspi_dev;
 
-	if (addr < 0x0C0000) {
+	if (addr < 0x200000) {
 		dev->hl_read(addr, dest, count_aligned);
 	} else {
 		dev->read(addr, dest, count_aligned);
