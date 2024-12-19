@@ -58,4 +58,10 @@ int sr_ant_switch(unsigned int ant_switch);
 int sr_gpio_remove(void);
 int sr_gpio_config(void);
 #endif /* CONFIG_NRF70_SR_COEX_RF_SWITCH */
+
+int rpu_validate_addr(uint32_t start_addr, uint32_t len, bool *hl_flag);
+int rpu_pwron(void);
+int rpu_validate_addr(uint32_t start_addr, uint32_t len, bool *hl_flag);
+int rpu_gpio_config(void);
+
 #endif /* __RPU_HW_IF_H_ */

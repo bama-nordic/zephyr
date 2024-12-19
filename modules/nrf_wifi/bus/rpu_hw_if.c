@@ -76,7 +76,7 @@ static int validate_addr_blk(uint32_t start_addr,
 	return -1;
 }
 
-static int rpu_validate_addr(uint32_t start_addr, uint32_t len, bool *hl_flag)
+int rpu_validate_addr(uint32_t start_addr, uint32_t len, bool *hl_flag)
 {
 	int ret = 0, i;
 	uint32_t end_addr;
@@ -169,7 +169,7 @@ out:
 	return ret;
 }
 
-static int rpu_gpio_config(void)
+int rpu_gpio_config(void)
 {
 	int ret;
 
@@ -221,7 +221,7 @@ static int rpu_gpio_remove(void)
 	return ret;
 }
 
-static int rpu_pwron(void)
+int rpu_pwron(void)
 {
 	int ret;
 
