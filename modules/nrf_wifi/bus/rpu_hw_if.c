@@ -35,9 +35,8 @@ GPIO_DT_SPEC_GET(NRF7002_NODE, iovdd_ctrl_gpios);
 static const struct gpio_dt_spec bucken_spec =
 GPIO_DT_SPEC_GET(NRF7002_NODE, bucken_gpios);
 
-char blk_name[][15] = { "SysBus",   "ExtSysBus",	   "PBus",	   "PKTRAM",
-			       "GRAM",	   "LMAC_ROM",	   "LMAC_RET_RAM", "LMAC_SRC_RAM",
-			       "UMAC_ROM", "UMAC_RET_RAM", "UMAC_SRC_RAM" };
+char blk_name[][15] = { "SysBus",   "RAM0-LMAC",   "RAM1-UMAC",	   "PKTRAM",
+			       "CODERAM",   "RAM2-GRAM",   "BELLBOARD", "??"};
 
 uint32_t rpu_7002_memmap[][3] = {
 	{ 0x000000, 0x0FFFFF, 1 },

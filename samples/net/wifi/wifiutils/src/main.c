@@ -20,7 +20,7 @@
 
 LOG_MODULE_DECLARE(wifi_nrf, CONFIG_WIFI_NRF70_BUSLIB_LOG_LEVEL);
 
-#define SW_VER "2.0"
+#define SW_VER "3.0"
 
 static int wifi_on_flag=0;
 static bool hl_flag=0;
@@ -36,7 +36,7 @@ void print_memmap(const struct shell *shell)
 {
     shell_print(shell,"                                                   \n");
     shell_print(shell," ==================================================\n");
-    shell_print(shell,"         Sheliak memory map                        \n");
+    shell_print(shell,"         Wezen memory map                        \n");
     shell_print(shell," ==================================================\n");
 	for (int i = 0; i < NUM_MEM_BLOCKS; i++) {
 		shell_print(shell, " %-14s : 0x%06x - 0x%06x (%05d words)\n",
@@ -425,6 +425,83 @@ static int cmd_memmap(const struct shell *shell, size_t argc, char **argv)
 	return SHELL_OK;
 }
 
+#if 1
+
+enum memtest_status {
+        MEMTEST_STATUS_PASS = 0,
+        MEMTEST_STATUS_FAIL = 1,
+};
+
+#define PKTRAM_START 0x200000
+#define PKTRAM_END   0x2F0000
+
+static int cmd_straddled_memtest(const struct shell *shell, size_t argc, char **argv)
+{
+	enum memtest_status status = MEMTEST_STATUS_FAIL;
+	unsigned int addr = 0;
+	unsigned int val = 0;
+	unsigned int i = 0;
+	unsigned int init_val = 0;
+	unsigned int num_times;
+
+
+    	if (wifi_on_flag == 0) {
+     	   shell_print(shell,"Err!! Please run wifi_on first");
+       	 return -1;
+    	}
+
+   	 if (argc != 2) {
+       	 	shell_print(shell,"incorrect arguments!!");
+       	 	shell_print(shell,"$ wifiutils straddled_memtest <num_iterations> ");
+       	 return -1;
+    	}
+
+	num_times = strtoul(argv[1], NULL, 0);
+
+	for (i = 0; i < num_times; i++) {
+		printk("%s: Memory test iteration %d\n", __func__, i + 1);
+
+		for (addr = PKTRAM_START; addr < PKTRAM_END; addr += 4) {
+			//status = hal_rpu_mem_write(fmac_dev_ctx->hal_dev_ctx, addr, &init_val, sizeof(init_val));
+			status = rpu_write(addr, &init_val, sizeof(init_val));
+			if (status != MEMTEST_STATUS_PASS) {
+				printk("%s: Memory write failed at address 0x%x\n", __func__, addr);
+				goto out;
+			}
+		}
+
+		for (addr = PKTRAM_START; addr < PKTRAM_END; addr += 4) {
+			//status = hal_rpu_mem_write(fmac_dev_ctx->hal_dev_ctx, addr, &addr, sizeof(addr));
+			status = rpu_write(addr, &addr, sizeof(addr));
+			if (status != MEMTEST_STATUS_PASS) {
+				printk("%s: Memory write failed at address 0x%x\n", __func__, addr);
+				goto out;
+			}
+
+			//status = hal_rpu_mem_read(fmac_dev_ctx->hal_dev_ctx, &val, addr, sizeof(val));
+			status = rpu_read(addr, &val, sizeof(val));
+			if (status != MEMTEST_STATUS_PASS) {
+				printk("%s: Memory read failed at address 0x%x\n", __func__, addr);
+				goto out;
+			}
+
+			if (val != addr) {
+				printk("%s: Memory read value (0x%X) mismatch at address 0x%X\n", __func__, val, addr);
+				status = MEMTEST_STATUS_FAIL;
+				goto out;
+			}
+		}
+	}
+
+	status = MEMTEST_STATUS_PASS;
+
+out:
+	return status;
+}
+#endif
+
+
+
 static void cmd_help(const struct shell *shell, size_t argc, char **argv)
 {
 	shell_print(shell, "Supported commands....  ");
@@ -461,6 +538,7 @@ static void cmd_help(const struct shell *shell, size_t argc, char **argv)
 		"         This writes pattern 0xaaaa5555 to 64 locations starting from 0x0c0000,");
 	shell_print(shell, "         reads them back and validates them");
 	shell_print(shell, "  ");
+	shell_print(shell, "uart:~$ wifiutils straddled_memtest  <num_iterations>");
 	shell_print(shell, "uart:~$ wifiutils wifi_on  ");
 #if CONFIG_NRF700X_ON_QSPI
 	shell_print(shell, "         - Configures all gpio pins ");
@@ -664,8 +742,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD(clrirq, NULL, "Clears generated Host IRQ interrupt", cmd_clrirq),
 	SHELL_CMD(xtal_clkout, NULL, "Gives of XTAL Clock as reference", cmd_xtal_clkout),
 	SHELL_CMD(memmap, NULL, "Gives the full memory map of the Sheliak chip", cmd_memmap),
-	SHELL_CMD(memtest, NULL, "Writes, reads back and validates specified memory on Seliak chip",
+	SHELL_CMD(memtest, NULL, "Writes, reads back and validates specified memory on Sheliak chip",
 		  cmd_memtest),
+	SHELL_CMD(straddled_memtest, NULL, "validates specified memory on Sheliak chip", cmd_straddled_memtest),
 	SHELL_CMD(ver, NULL, "Display SW version of the hex file", cmd_ver),
 	SHELL_CMD(help, NULL, "Help with all supported commmands", cmd_help), SHELL_SUBCMD_SET_END);
 
